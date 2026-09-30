@@ -1,0 +1,67 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "villa-vicks-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
+      "port": 5173
+    },
+    {
+      "name": "villa-vicks-dist",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "scripts/serve-dist.mjs"
+      ],
+      "port": 4173
+    },
+    {
+      "name": "ethan-vale",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "C:/Users/j7gam/Desktop/Ethan Vale/tools/servidor.mjs",
+        "--gerador"
+      ],
+      "port": 5190
+    },
+    {
+      "name": "luiza-center-dev",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "C:/Users/j7gam/Desktop/Luiza Center Site/node_modules/vite/bin/vite.js",
+        "C:/Users/j7gam/Desktop/Luiza Center Site"
+      ],
+      "port": 5180
+    },
+    {
+      "name": "luiza-center-dist",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "C:/Users/j7gam/Desktop/Luiza Center Site/scripts/serve-dist.mjs"
+      ],
+      "port": 4183,
+      "autoPort": true
+    },
+    {
+      "name": "iron-gym-dev",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "C:/Users/j7gam/Desktop/Iron Gym Site/node_modules/vite/bin/vite.js",
+        "C:/Users/j7gam/Desktop/Iron Gym Site"
+      ],
+      "port": 5181
+    },
+    {
+      "name": "iron-gym-dist",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "C:/Users/j7gam/Desktop/Iron Gym Site/scripts/serve-dist.mjs"
+      ],
+      "port": 4184,
+      "autoPort": true
+    }
+  ]
+}

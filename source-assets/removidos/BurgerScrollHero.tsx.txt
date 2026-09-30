@@ -1,0 +1,726 @@
+import { useEffect, useRef, useState } from "react";
+import { gsap, ScrollTrigger, useGSAP } from "@/lib/gsap";
+import { SITE } from "@/data/site";
+import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
+import { Logo } from "@/components/Logo";
+import { Dot } from "@/components/icons";
+import { cn } from "@/lib/utils";
+import { WrapperTearOverlay } from "@/components/ui/wrapper-tear-reveal";
+import { assetUrl } from "@/lib/asset-url";
+
+/**
+ * INTRO — o scroll controla o vídeo do hambúrguer.
+ *
+ *   SCROLL → PROGRESSO (ScrollTrigger) → etapa + tempo do vídeo (rAF + suavização) → video.currentTime
+ *
+ * 0%  → 86% : montagem, camada por camada. Cada ingrediente ocupa a MESMA distância de scroll
+ *             (mapeamento por trechos) e a legenda troca quando a camada encosta no burger.
+ * 86% → 95% : o hambúrguer reduz (≤ 0.86) e se desloca, abrindo espaço para a marca
+ * 88% → 97% : VILLA VICK'S • BURGER • PIZZA • GRILL • horário • local • CTAs
+ *
+ * Nada de setState durante o scroll: tudo via refs.
+ */
+
+type Variant = "desktop" | "mobile";
+
+const VIDEOS: Record<Variant, { src: string; webm: string; open: string; closed: string; closedJpg: string; bbox: { x0: number; x1: number; y0: number; y1: number } }> = {
+  // 1920×1080 completo. bbox = caixa do hambúrguer FECHADO no último quadro (medida no arquivo).
+  desktop: {
+    src: assetUrl("/assets/videos/burger-intro-1080.mp4"),
+    webm: assetUrl("/assets/videos/burger-intro-1080.webm"),
+    open: assetUrl("/assets/videos/burger-open-1920.webp"),
+    closed: assetUrl("/assets/videos/burger-closed-1920.webp"),
+    closedJpg: assetUrl("/assets/videos/burger-closed-1920.jpg"),
+    bbox: { x0: 0.227, x1: 0.774, y0: 0.152, y1: 0.998 },
+  },
+  // Recorte central 1200×1080 → 800×720 (bem mais leve para celular).
+  mobile: {
+    src: assetUrl("/assets/videos/burger-intro-mobile.mp4"),
+    webm: assetUrl("/assets/videos/burger-intro-mobile.webm"),
+    open: assetUrl("/assets/videos/burger-open-mobile.webp"),
+    closed: assetUrl("/assets/videos/burger-closed-mobile.webp"),
+    closedJpg: assetUrl("/assets/videos/burger-closed-mobile.jpg"),
+    bbox: { x0: 0.063, x1: 0.938, y0: 0.152, y1: 0.998 },
+  },
+};
+
+/**
+ * Frases que apresentam a Villa Vick's enquanto o burger se monta (divididas por igual no trecho do vídeo).
+ */
+const STEPS = [
+  { name: "Três cozinhas", desc: "Burger, pizza e grill no mesmo endereço." },
+  { name: "Feito na hora", desc: "Nada de fast-food: tudo artesanal, do blend ao brioche." },
+  { name: "Massa que descansa", desc: "Pizza de fermentação longa, com ingredientes selecionados." },
+  { name: "Brasa acesa", desc: "Carnes e espetinhos preparados na hora, na brasa." },
+  { name: "Para reunir", desc: "Um lugar tranquilo para a turma e a família." },
+] as const;
+
+/** Progresso do vídeo (0–1) → tempo (linear, mesma velocidade da versão original) + frase atual. */
+function assemblyAt(p: number) {
+  const k = Math.min(Math.max(p, 0), 1);
+  return { t: k * 9.96, i: Math.min(STEPS.length - 1, Math.floor(k * STEPS.length)) };
+}
+
+/**
+ * Trilha da intro (340svh no celular, 380svh no desktop): o papel rasga e sai no começo; a montagem
+ * começa JÁ em 9,4%, com o papel ainda abrindo — o burger se mexe pela fresta e continua sem pausa.
+ * 9,4% → 68,75% o burger se monta (mesma distância de scroll de antes); depois ele assenta enquanto
+ * a marca entra (as duas coisas juntas: nada de trecho "morto" rolando sem nada mudar).
+ */
+const PHASES = {
+  video: { tearEnd: 0.2125, assemblyStart: 0.094, assemblyEnd: 0.6875, captionOut: 0.677, settleStart: 0.6875, settleEnd: 0.88, brandStart: 0.765 },
+  // Sem vídeo (erro): papel rasga, o burger já aparece fechado e a marca entra mais cedo.
+  fallback: { tearEnd: 0.3, assemblyStart: 0.3, assemblyEnd: 0.3, captionOut: 0, settleStart: 0.4, settleEnd: 0.7, brandStart: 0.5 },
+};
+
+/** O menu do topo só aparece depois que o burger termina de se montar e assentar. */
+export const HEADER_SHOW_AT = PHASES.video.settleEnd;
+
+// O vídeo é baixado inteiro antes de tocar (ver efeito abaixo); em rede lenta, depois disso usa o fallback.
+const METADATA_TIMEOUT = 20000;
+
+/**
+ * Celular: a montagem é uma sequência de fotos (scripts/build-hero-frames.mjs) em duas <img> empilhadas,
+ * no lugar do vídeo. Pular para um ponto do vídeo a cada rolagem depende do decodificador do aparelho:
+ * em vários Android e no navegador do Instagram o burger simplesmente não andava, e o vídeo (2,3 MB)
+ * precisava baixar inteiro antes. As fotos funcionam em qualquer aparelho e chegam aos poucos
+ * (1ª, última, de 8 em 8, 4 em 4...): a montagem já anda com as primeiras e fica mais fluida sozinha.
+ */
+const FRAMES = {
+  count: 80,
+  fps: 8,
+  width: 640,
+  height: 576,
+  url: (i: number) => assetUrl(`/assets/videos/frames/m-${String(i).padStart(2, "0")}.webp`),
+};
+
+/** H.264 (MP4) em quase todos os navegadores; VP9 (WebM) onde não houver H.264. */
+function pickSource(m: { src: string; webm: string }) {
+  const probe = document.createElement("video");
+  if (probe.canPlayType('video/mp4; codecs="avc1.640028"')) return m.src;
+  if (probe.canPlayType('video/webm; codecs="vp9"')) return m.webm;
+  return m.src;
+}
+
+export function BurgerScrollHero() {
+  const reduced = usePrefersReducedMotion();
+  // celular em pé (< 768 px) ou deitado (toque + tela baixa): versão leve, com a sequência de fotos
+  const [variant] = useState<Variant>(() =>
+    window.matchMedia("(max-width: 767px), (pointer: coarse) and (max-height: 540px)").matches ? "mobile" : "desktop",
+  );
+  // "early": falhou antes do primeiro scroll (a intro encolhe); "late": mantém a trilha para não pular a página.
+  const [failure, setFailure] = useState<null | "early" | "late">(null);
+  const failed = failure !== null;
+  const media = VIDEOS[variant];
+  const [videoSrc] = useState(() => pickSource(media));
+  const useVideo = !reduced && !failed;
+  const useFrames = variant === "mobile";
+
+  const sectionRef = useRef<HTMLElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const areaRef = useRef<HTMLDivElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const framesRef = useRef<HTMLDivElement>(null);
+  const brandRef = useRef<HTMLDivElement>(null);
+  const captionRef = useRef<HTMLDivElement>(null);
+  const nameRef = useRef<HTMLParagraphElement>(null);
+  const descRef = useRef<HTMLParagraphElement>(null);
+
+  // Progresso bruto do scroll (0–1), lido pelo loop de rAF.
+  const progressRef = useRef(0);
+  const kickRef = useRef<() => void>(() => {});
+  const shownStep = useRef(0);
+
+  /** Troca a legenda direto no DOM (sem re-render), com uma transição curta. */
+  const showStep = (i: number) => {
+    if (i === shownStep.current) return;
+    const forward = i > shownStep.current;
+    shownStep.current = i;
+    const s = STEPS[i];
+    if (nameRef.current) nameRef.current.textContent = s.name;
+    if (descRef.current) descRef.current.textContent = s.desc;
+    if (!reduced) {
+      const from = forward ? 14 : -14;
+      [nameRef.current, descRef.current].forEach((el, n) =>
+        el?.animate(
+          [
+            { opacity: 0, transform: `translateY(${from}px)` },
+            { opacity: 1, transform: "translateY(0)" },
+          ],
+          { duration: 420, delay: n * 50, easing: "cubic-bezier(0.16, 1, 0.3, 1)", fill: "backwards" },
+        ),
+      );
+    }
+  };
+
+  /** Onde o hambúrguer termina: calculado a partir do layout real (offset* ignora transforms). */
+  const computeEnd = () => {
+    const stage = stageRef.current!;
+    const area = areaRef.current!;
+    const box = boxRef.current!;
+    const brand = brandRef.current!;
+    const W = stage.clientWidth;
+    const H = stage.clientHeight;
+    const hdr = area.offsetTop;
+    const bx = area.offsetLeft + box.offsetLeft;
+    const by = area.offsetTop + box.offsetTop;
+    const bw = box.offsetWidth;
+    const bh = box.offsetHeight;
+    const { x0, x1, y0, y1 } = media.bbox;
+    const burgerW = bw * (x1 - x0);
+    const burgerH = bh * (y1 - y0);
+    const burgerCx = bx + bw * ((x0 + x1) / 2);
+    const burgerCy = by + bh * ((y0 + y1) / 2);
+    const cx = bx + bw / 2;
+    const cy = by + bh / 2;
+
+    const landscape = window.matchMedia("(orientation: landscape)").matches;
+    const region = landscape
+      ? { l: W * 0.04, r: brand.offsetLeft - W * 0.02, t: hdr + 12, b: H - 20 }
+      : { l: 12, r: W - 12, t: hdr + 4, b: brand.offsetTop - 12 };
+    const s = Math.max(
+      0.35,
+      Math.min(0.86, ((region.r - region.l) * 0.96) / burgerW, ((region.b - region.t) * 0.96) / burgerH),
+    );
+    const tx = (region.l + region.r) / 2;
+    const ty = (region.t + region.b) / 2;
+    // Transform-origin no centro da caixa: após escalar, o centro do hambúrguer vai para c + s·(b − c).
+    return { x: tx - cx - s * (burgerCx - cx), y: ty - cy - s * (burgerCy - cy), scale: s };
+  };
+
+  /* ------------------------------------------------------------------
+     Vídeo: metadata, fallback, "priming" para Safari e loop de scrub.
+  ------------------------------------------------------------------- */
+  useEffect(() => {
+    if (!useVideo || useFrames) return;
+    const video = videoRef.current;
+    if (!video) return;
+
+    // iOS antigo exige os atributos (e não só as propriedades) para vídeo inline.
+    video.muted = true;
+    video.defaultMuted = true;
+    video.setAttribute("muted", "");
+    video.setAttribute("playsinline", "");
+    video.setAttribute("webkit-playsinline", "");
+
+    let raf = 0;
+    let current = -1;
+    // Seeks lentos (ex.: vídeo sem buffer): pula a suavização e mira direto no alvo — converge em 1 seek.
+    let seekStart = 0;
+    let slowSeeks = false;
+    let metaReady = video.readyState >= 1;
+    let primed = false;
+
+    const fail = () => setFailure((f) => f ?? (progressRef.current < 0.05 ? "early" : "late"));
+
+    // Quadros que NUNCA chegam (ex.: iOS em modo economia): depois de 8 s rolando sem imagem, usa o fallback.
+    // Importante: durante um seek normal o readyState cai para 1 por instantes — isso não é travamento.
+    let hasFrames = video.readyState >= 2;
+    let stallTimer = 0;
+    const watchStall = () => {
+      if (hasFrames || !metaReady || stallTimer || progressRef.current < 0.1) return;
+      stallTimer = window.setTimeout(() => {
+        stallTimer = 0;
+        if (!hasFrames) fail();
+      }, 8000);
+    };
+    const onData = () => {
+      hasFrames = true;
+      window.clearTimeout(stallTimer);
+      stallTimer = 0;
+    };
+    const timeout = window.setTimeout(() => {
+      if (!metaReady) fail();
+    }, METADATA_TIMEOUT);
+
+    // O arquivo inteiro vai para a memória (Blob): cada seek só decodifica, sem nova requisição de rede.
+    // Sem isso o Safari não mantém o vídeo em buffer e o scrub fica atrasado em relação ao scroll.
+    // Se o navegador não aceitar blob:, usa a URL normal; se o download falhar, fallback estático.
+    const ctrl = new AbortController();
+    let objectUrl = "";
+    const useNetwork = () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      objectUrl = "";
+      video.src = videoSrc;
+    };
+    // O vídeo só começa a baixar depois que a primeira tela (papel, fontes, pôster) terminou de carregar:
+    // no 4G os megabytes do vídeo não disputam banda com o que o visitante vê ao abrir o site.
+    const download = () => {
+      if (ctrl.signal.aborted) return;
+      if (location.protocol === "file:") return useNetwork();
+      fetch(videoSrc, { signal: ctrl.signal })
+        .then((r) => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.blob();
+        })
+        .then((blob) => {
+          objectUrl = URL.createObjectURL(blob);
+          video.src = objectUrl;
+        })
+        .catch(() => {
+          // Falha de rede no download: a mesma URL falharia de novo — vai direto para o fallback.
+          if (!ctrl.signal.aborted) fail();
+        });
+    };
+    if (document.readyState === "complete") download();
+    else window.addEventListener("load", download, { once: true });
+    const onError = () => {
+      if (objectUrl) useNetwork();
+      else fail();
+    };
+
+    // Safari só decodifica quadros para seek depois de um play() (e isso também o faz entrar em buffer).
+    // Vídeo mudo pode tocar sem gesto; pausa no próprio evento "play" para não avançar sozinho.
+    const ua = navigator.userAgent;
+    const isSafari =
+      /iP(hone|ad|od)/.test(ua) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1) ||
+      (/Safari\//.test(ua) && !/(Chrome|Chromium|CriOS|FxiOS|Edg|OPR|Android)/.test(ua));
+    const onPlay = () => {
+      video.pause();
+      kick();
+    };
+    const prime = () => {
+      if (primed || !isSafari) return;
+      primed = true;
+      const p = video.play();
+      if (p && typeof p.then === "function") {
+        p.then(onPlay).catch(() => {
+          primed = false; // modo economia de energia: tenta de novo no primeiro toque
+        });
+      }
+    };
+
+    const step = () => {
+      raf = 0;
+      const { assemblyStart, assemblyEnd } = PHASES.video;
+      const goal = Math.min(Math.max((progressRef.current - assemblyStart) / (assemblyEnd - assemblyStart), 0), 1);
+      if (current < 0 || slowSeeks || !metaReady) current = goal;
+      current += (goal - current) * 0.2;
+      if (Math.abs(goal - current) < 0.0008) current = goal;
+      const { t: target, i } = assemblyAt(current);
+      showStep(i); // legenda segue o quadro exibido, não o scroll bruto
+
+      const d = video.duration;
+      if (!metaReady || !Number.isFinite(d) || d <= 0) return;
+      const t = Math.min(target, d - 0.042);
+      // Não empilha seeks: espera o anterior terminar (scrub mais fluido, principalmente no Firefox/Safari).
+      if (!video.seeking && Math.abs(video.currentTime - t) > 0.02) {
+        seekStart = performance.now();
+        video.currentTime = t;
+      }
+      const settled = current === goal && Math.abs(video.currentTime - t) <= 0.02;
+      if (!settled) raf = requestAnimationFrame(step);
+    };
+
+    const kick = () => {
+      if (!raf) raf = requestAnimationFrame(step);
+      watchStall();
+    };
+    kickRef.current = kick;
+
+    const onMeta = () => {
+      metaReady = true;
+      window.clearTimeout(timeout);
+      prime();
+      kick();
+    };
+    const onSeeked = () => {
+      if (seekStart) slowSeeks = performance.now() - seekStart > 120;
+      onData(); // um seek concluído = quadro decodificado
+      kick();
+    };
+    const onTouch = () => prime();
+
+    if (metaReady) onMeta();
+    else kick();
+    video.addEventListener("loadedmetadata", onMeta);
+    video.addEventListener("seeked", onSeeked);
+    video.addEventListener("play", onPlay);
+    video.addEventListener("error", onError);
+    video.addEventListener("loadeddata", onData);
+    window.addEventListener("touchstart", onTouch, { passive: true, once: true });
+
+    return () => {
+      ctrl.abort();
+      window.removeEventListener("load", download);
+      if (objectUrl) {
+        video.removeAttribute("src");
+        URL.revokeObjectURL(objectUrl);
+      }
+      window.clearTimeout(timeout);
+      window.clearTimeout(stallTimer);
+      if (raf) cancelAnimationFrame(raf);
+      kickRef.current = () => {};
+      video.removeEventListener("loadedmetadata", onMeta);
+      video.removeEventListener("seeked", onSeeked);
+      video.removeEventListener("play", onPlay);
+      video.removeEventListener("error", onError);
+      video.removeEventListener("loadeddata", onData);
+      window.removeEventListener("touchstart", onTouch);
+    };
+    // showStep só usa refs
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [useVideo, useFrames, videoSrc]);
+
+  /* ------------------------------------------------------------------
+     Celular: sequência de fotos (mesmo loop de suavização do vídeo).
+     Duas <img> empilhadas: a de baixo mostra o quadro atual, a de cima o próximo com transparência
+     (mistura entre quadros). Trocar o src de uma <img> já baixada não custa nada no JavaScript: o
+     navegador descompacta a foto fora da thread principal — desenhar num canvas travava a rolagem.
+  ------------------------------------------------------------------- */
+  useEffect(() => {
+    if (!useVideo || !useFrames) return;
+    const wrap = framesRef.current;
+    const base = wrap?.querySelector<HTMLImageElement>("[data-frame=a]");
+    const over = wrap?.querySelector<HTMLImageElement>("[data-frame=b]");
+    if (!wrap || !base || !over) return;
+    const N = FRAMES.count;
+    const loaded: boolean[] = new Array(N).fill(false);
+    let raf = 0;
+    let current = -1;
+    let shownA = -1;
+    let shownB = -1;
+    let shownMix = -1;
+    let disposed = false;
+
+    const fail = () => setFailure((f) => f ?? (progressRef.current < 0.05 ? "early" : "late"));
+    // quadro baixado mais perto de i
+    const near = (i: number) => {
+      for (let d = 0; d < N; d++) {
+        if (loaded[i - d]) return i - d;
+        if (loaded[i + d]) return i + d;
+      }
+      return -1;
+    };
+    const paint = (f: number) => {
+      const a = Math.floor(f);
+      const b = Math.min(a + 1, N - 1);
+      let A = a;
+      let B = b;
+      let mix = Math.round((f - a) * 12) / 12;
+      if (!loaded[a] || !loaded[b]) {
+        A = B = near(Math.round(f));
+        mix = 0;
+      }
+      if (A < 0) return;
+      if (A !== shownA) {
+        base.src = FRAMES.url(A);
+        shownA = A;
+      }
+      if (B !== shownB && B !== A) {
+        over.src = FRAMES.url(B);
+        shownB = B;
+      }
+      const m = B === A ? 0 : mix;
+      if (m !== shownMix) {
+        over.style.opacity = String(m);
+        shownMix = m;
+      }
+      wrap.dataset.time = ((A + m * (B - A)) / FRAMES.fps).toFixed(2); // tempo exibido (testes)
+    };
+    const step = () => {
+      raf = 0;
+      const { assemblyStart, assemblyEnd } = PHASES.video;
+      const goal = Math.min(Math.max((progressRef.current - assemblyStart) / (assemblyEnd - assemblyStart), 0), 1);
+      if (current < 0) current = goal;
+      current += (goal - current) * 0.25;
+      if (Math.abs(goal - current) < 0.0008) current = goal;
+      const { t, i } = assemblyAt(current);
+      showStep(i);
+      paint(Math.min(t * FRAMES.fps, N - 1));
+      if (current !== goal) raf = requestAnimationFrame(step);
+    };
+    const kick = () => {
+      if (!raf) raf = requestAnimationFrame(step);
+    };
+    kickRef.current = kick;
+    kick();
+
+    // ordem de download: primeira, última, depois preenchendo de 8 em 8, 4 em 4, 2 em 2 e o resto
+    const order: number[] = [];
+    const seen = new Set<number>();
+    for (const stride of [N - 1, 8, 4, 2, 1]) {
+      for (let i = 0; i < N; i += stride) {
+        if (!seen.has(i)) {
+          seen.add(i);
+          order.push(i);
+        }
+      }
+    }
+    const keep: HTMLImageElement[] = [];
+    let next = 0;
+    let errors = 0;
+    const loadNext = () => {
+      if (disposed || next >= order.length) return;
+      const i = order[next++];
+      const img = new Image();
+      img.decoding = "async";
+      img.onload = () => {
+        if (disposed) return;
+        loaded[i] = true;
+        shownA = shownB = -1; // um quadro mais próximo pode ter chegado
+        kick();
+        loadNext();
+      };
+      img.onerror = () => {
+        if (disposed) return;
+        errors++;
+        if (i === 0 || errors > 6) fail();
+        else loadNext();
+      };
+      img.src = FRAMES.url(i);
+      keep.push(img); // mantém a referência: a foto fica no cache de memória
+    };
+    // Começa quando a primeira tela terminou de carregar (o papel cobre a tela até o primeiro toque).
+    const start = () => {
+      for (let k = 0; k < 4; k++) loadNext();
+    };
+    if (document.readyState === "complete") start();
+    else window.addEventListener("load", start, { once: true });
+
+    return () => {
+      disposed = true;
+      window.removeEventListener("load", start);
+      if (raf) cancelAnimationFrame(raf);
+      kickRef.current = () => {};
+      keep.length = 0;
+    };
+    // showStep só usa refs
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [useVideo, useFrames]);
+
+  /* ------------------------------------------------------------------
+     Timeline controlada pelo scroll (GSAP + ScrollTrigger).
+  ------------------------------------------------------------------- */
+  useGSAP(
+    () => {
+      const box = boxRef.current!;
+      const brandItems = gsap.utils.toArray<HTMLElement>("[data-brand]", brandRef.current!);
+      gsap.set(box, { transformOrigin: "50% 50%", force3D: true });
+
+      if (reduced) {
+        // Sem animação pesada: estado final direto, recalculado em resize/rotação.
+        const apply = () => gsap.set(box, computeEnd());
+        apply();
+        gsap.set(brandItems, { autoAlpha: 1, y: 0 });
+        let frame = 0;
+        const onResize = () => {
+          cancelAnimationFrame(frame);
+          frame = requestAnimationFrame(apply);
+        };
+        window.addEventListener("resize", onResize);
+        return () => {
+          cancelAnimationFrame(frame);
+          window.removeEventListener("resize", onResize);
+        };
+      }
+
+      const ph = failure === "early" ? PHASES.fallback : PHASES.video;
+      // Enquanto o papel cobre a tela inteira, o palco (vídeo/foto) fica invisível: ninguém vê, e assim
+      // o navegador não conta a foto escondida como "maior elemento" da primeira tela (LCP).
+      // Ele aparece no PRIMEIRO TOQUE (dedo encostando, clique, tecla, roda do mouse), não no primeiro
+      // movimento: preparar o vídeo custa um quadro longo, e assim ele acontece antes de a página andar.
+      const area = areaRef.current!;
+      const interactions = ["touchstart", "pointerdown", "keydown", "wheel"] as const;
+      const uncover = () => {
+        if (area.dataset.covered !== "false") area.dataset.covered = "false";
+        interactions.forEach((type) => window.removeEventListener(type, uncover));
+      };
+      interactions.forEach((type) => window.addEventListener(type, uncover, { passive: true }));
+      const revealStage = (p: number) => {
+        if (p > 0) uncover();
+      };
+      const tl = gsap.timeline({
+        defaults: { ease: "none" },
+        scrollTrigger: {
+          trigger: sectionRef.current,
+          start: "top top",
+          end: "bottom bottom",
+          scrub: 0.5,
+          invalidateOnRefresh: true,
+          onUpdate: (self) => {
+            progressRef.current = self.progress;
+            revealStage(self.progress);
+            kickRef.current();
+          },
+          onRefresh: (self) => {
+            progressRef.current = self.progress;
+            revealStage(self.progress);
+            kickRef.current();
+          },
+        },
+      });
+
+      tl.to({}, { duration: 1 }, 0); // duração normalizada = progresso do scroll
+      if (!failed) tl.fromTo(captionRef.current, { autoAlpha: 1 }, { autoAlpha: 0, duration: 0.02 }, ph.captionOut);
+      tl.fromTo(
+        box,
+        { x: 0, y: 0, scale: 1 },
+        {
+          x: () => computeEnd().x,
+          y: () => computeEnd().y,
+          scale: () => computeEnd().scale,
+          duration: ph.settleEnd - ph.settleStart,
+          ease: "power2.inOut",
+        },
+        ph.settleStart,
+      );
+      tl.fromTo(
+        brandItems,
+        { autoAlpha: 0, y: 28 },
+        { autoAlpha: 1, y: 0, duration: 0.1, stagger: 0.035, ease: "power2.out" },
+        ph.brandStart,
+      );
+
+      progressRef.current = tl.scrollTrigger?.progress ?? 0;
+      kickRef.current();
+      return () => interactions.forEach((type) => window.removeEventListener(type, uncover));
+    },
+    { scope: sectionRef, dependencies: [reduced, failure, variant], revertOnUpdate: true },
+  );
+
+  // Sem vídeo a trilha encolhe: as seções abaixo precisam recalcular suas posições.
+  useEffect(() => {
+    if (failed) ScrollTrigger.refresh();
+  }, [failed]);
+
+  // Fontes e vídeo mudam medidas: recalcula posições depois que carregam.
+  useEffect(() => {
+    let cancelled = false;
+    document.fonts?.ready.then(() => !cancelled && ScrollTrigger.refresh());
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const showCaption = !reduced && !failed;
+  const phases = failure === "early" ? PHASES.fallback : PHASES.video;
+
+  return (
+    <section
+      id="inicio"
+      ref={sectionRef}
+      aria-labelledby="hero-title"
+      data-captions={showCaption ? "on" : "off"}
+      className={cn("relative", reduced ? "" : failure === "early" ? "h-[calc(var(--vh,1vh)*240)]" : "hero-track")}
+    >
+      <h1 id="hero-title" className="sr-only">
+        Villa Vick's — Burger, Pizza e Grill em Itapecuru-Mirim
+      </h1>
+      <p className="sr-only">
+        Vick's Burger, montado na hora: pão brioche, blend Vick's de 130 g, cheddar, cebola roxa, tomate, alface crespa, molho da casa e brioche com gergelim.
+      </p>
+
+      <div ref={stageRef} className={cn("hero-stage relative w-full overflow-hidden", !reduced && "sticky top-0")}>
+        {/* Abertura: a embalagem kraft rasga e revela o palco do burger */}
+        {!reduced && <WrapperTearOverlay triggerRef={sectionRef} portion={phases.tearEnd} />}
+
+        {/* Área do hambúrguer (abaixo do header; no retrato, deixa espaço para a legenda) */}
+        <div ref={areaRef} data-covered={reduced ? "false" : "true"} className="hero-area pointer-events-none absolute inset-x-0 flex items-center justify-center data-[covered=true]:opacity-0">
+          <div ref={boxRef} data-variant={variant} className="hero-box relative flex-none will-change-transform">
+            {useVideo && useFrames ? (
+              <div ref={framesRef} data-frames aria-hidden="true" className="absolute inset-0">
+                {/* começa com a foto de abertura; os quadros entram conforme chegam */}
+                <img data-frame="a" src={media.open} alt="" width={FRAMES.width} height={FRAMES.height} decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+                <img data-frame="b" alt="" width={FRAMES.width} height={FRAMES.height} decoding="async" className="absolute inset-0 h-full w-full object-cover opacity-0" />
+              </div>
+            ) : useVideo ? (
+              <video
+                ref={videoRef}
+                className="absolute inset-0 h-full w-full object-cover"
+                poster={media.open}
+                muted
+                playsInline
+                preload="auto"
+                disablePictureInPicture
+                disableRemotePlayback
+                aria-hidden="true"
+                tabIndex={-1}
+              />
+            ) : (
+              <picture>
+                <source type="image/webp" srcSet={media.closed} />
+                <img
+                  src={media.closedJpg}
+                  width={variant === "desktop" ? 1920 : 800}
+                  height={variant === "desktop" ? 1080 : 720}
+                  alt="Hambúrguer artesanal montado: pão brioche com gergelim, alface, tomate, cebola roxa, cheddar e blend grelhado"
+                  className="absolute inset-0 h-full w-full object-cover"
+                  decoding="async"
+                  fetchPriority="high"
+                />
+              </picture>
+            )}
+            {/* Funde as bordas do quadro com o fundo: o pão encosta no topo/base do vídeo durante a montagem */}
+            <div aria-hidden="true" className="absolute inset-x-0 top-0 h-[5%] bg-gradient-to-b from-[#020202] to-transparent" />
+            <div aria-hidden="true" className="absolute inset-x-0 bottom-0 h-[9%] bg-gradient-to-t from-[#020202] to-transparent" />
+          </div>
+        </div>
+
+        {/* Legenda do ingrediente — sincronizada com o quadro exibido */}
+        {showCaption && (
+          <div
+            ref={captionRef}
+            data-variant={variant}
+            aria-hidden="true"
+            className={cn(
+              "hero-caption pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-col items-center px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] text-center",
+              "landscape:inset-x-auto landscape:top-[var(--hdr)] landscape:left-[max(1.25rem,4vw)] landscape:items-start landscape:justify-center landscape:px-0 landscape:pb-0 landscape:text-left",
+            )}
+          >
+            <p ref={nameRef} className="display mt-2 text-[clamp(1.75rem,7.5vw,2.6rem)] text-bone landscape:text-[clamp(1.2rem,2.9vw,3.6rem)]">
+              {STEPS[0].name}
+            </p>
+            <p ref={descRef} className="mt-2 max-w-[30ch] text-[0.92rem] leading-snug text-smoke landscape:text-[clamp(0.78rem,1.05vw,1rem)]">
+              {STEPS[0].desc}
+            </p>
+          </div>
+        )}
+
+        {/* Identidade Villa Vick's — revelada no fim da montagem */}
+        <div
+          ref={brandRef}
+          className={cn(
+            "absolute inset-x-0 bottom-0 z-10 flex flex-col items-center px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] text-center",
+            "landscape:inset-y-0 landscape:right-0 landscape:left-auto landscape:w-[48%] landscape:items-start landscape:justify-center landscape:pt-[var(--hdr)] landscape:pr-[5vw] landscape:pb-6 landscape:pl-2 landscape:text-left",
+          )}
+        >
+          <div data-brand className="invisible">
+            <Logo
+              size={640}
+              eager
+              alt=""
+              className="w-[min(58vw,14rem,calc(calc(var(--svh,1svh)*17)*1.66))] landscape:w-[min(36vw,30rem,calc(calc(var(--svh,1svh)*30)*1.66))]"
+            />
+          </div>
+
+          <p data-brand className="display invisible mt-[clamp(0.6rem,calc(var(--svh,1svh)*2),1.5rem)] text-[clamp(1.3rem,4.2vw,1.6rem)] tracking-[0.1em] text-bone landscape:text-[clamp(1.2rem,min(2.4vw,calc(var(--svh,1svh)*5.2)),2.6rem)]">
+            Burger <Dot className="mx-[0.35em]" /> Pizza <Dot className="mx-[0.35em]" /> Grill
+          </p>
+
+          <ul data-brand className="invisible mt-[clamp(0.5rem,calc(var(--svh,1svh)*1.6),1.25rem)] space-y-1.5 text-[0.84rem] text-smoke sm:text-sm landscape:text-[clamp(0.8rem,calc(var(--svh,1svh)*1.9),1rem)]">
+            <li>
+              <span>
+                <span className="text-bone">Terça a domingo</span>, das 18h às 23h30
+              </span>
+            </li>
+            <li>
+              <span>
+                <span className="text-bone">Vila Food, Arena Jesus</span>, {SITE.city}
+              </span>
+            </li>
+          </ul>
+
+          <div data-brand className="invisible mt-[clamp(1rem,calc(var(--svh,1svh)*2.8),2rem)] flex w-full max-w-sm flex-wrap justify-center gap-2.5 landscape:max-w-md landscape:justify-start">
+            <a href="#cardapio" className="btn btn-primary min-w-[12rem] flex-1 landscape:flex-none">
+              Ver cardápio
+            </a>
+          </div>
+
+        </div>
+      </div>
+    </section>
+  );
+}

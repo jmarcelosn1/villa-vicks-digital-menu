@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Villa Vick's | Burger, Pizza & Grill em Itapecuru-Mirim</title>
+    <meta name="description" content="Hambúrguer artesanal, pizzas de longa fermentação e grill na Villa Vick's, em Itapecuru-Mirim." />
+    <link rel="canonical" href="%VITE_SITE_URL%/" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="format-detection" content="telephone=no" />
+
+    <link rel="icon" type="image/png" sizes="32x32" href="%BASE_URL%favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="48x48" href="%BASE_URL%favicon-48.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="%BASE_URL%icon-192.png" />
+    <link rel="apple-touch-icon" href="%BASE_URL%apple-touch-icon.png" />
+
+    <!-- Open Graph / redes sociais -->
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="pt_BR" />
+    <meta property="og:site_name" content="Villa Vick's" />
+    <meta property="og:title" content="Villa Vick's | Burger, Pizza & Grill em Itapecuru-Mirim" />
+    <meta property="og:description" content="Hambúrguer artesanal, pizzas de longa fermentação e grill na Villa Vick's, em Itapecuru-Mirim." />
+    <meta property="og:url" content="%VITE_SITE_URL%/" />
+    <meta property="og:image" content="%VITE_SITE_URL%/og-image.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Logo Villa Vick's ao lado de um hambúrguer artesanal — Burger, Pizza e Grill" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Villa Vick's | Burger, Pizza & Grill em Itapecuru-Mirim" />
+    <meta name="twitter:description" content="Hambúrguer artesanal, pizzas de longa fermentação e grill na Villa Vick's, em Itapecuru-Mirim." />
+    <meta name="twitter:image" content="%VITE_SITE_URL%/og-image.jpg" />
+
+    <!-- Primeira tela: o papel de embalagem. Vem antes de tudo (a marca fica embaixo dele). -->
+    <link rel="preload" as="image" href="%BASE_URL%assets/branding/papel-embalagem.webp" type="image/webp" fetchpriority="high" />
+    <style>
+      /* Capa estática: o papel aparece na primeira pintura, antes do JavaScript. O React desenha a mesma
+         capa por baixo e esta sai com um fade (src/lib/boot.ts). */
+      html { background: #050505; }
+      body { margin: 0; }
+      /* no topo da página com a altura da tela (não "fixed": no WebKit uma camada fixa cobrindo tudo travava rolagens por código) */
+      #boot { position: absolute; top: 0; left: 0; width: 100%; height: 100vh; height: 100lvh; z-index: 100; background: #e8dcd0; pointer-events: none; transition: opacity 0.25s ease; }
+      #boot svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+      #boot .boot-p { display: none; }
+      @media (orientation: portrait) {
+        #boot .boot-l { display: none; }
+        #boot .boot-p { display: block; }
+      }
+      #boot.is-gone { opacity: 0; }
+    </style>
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Restaurant",
+        "name": "Villa Vick's",
+        "description": "Hambúrguer artesanal, pizzas de longa fermentação e grill em Itapecuru-Mirim.",
+        "url": "%VITE_SITE_URL%/",
+        "image": "%VITE_SITE_URL%/og-image.jpg",
+        "logo": "%VITE_SITE_URL%/icon-512.png",
+        "servesCuisine": ["Hambúrguer artesanal", "Pizza", "Churrasco"],
+        "telephone": "+55 98 98595-1895",
+        "address": {
+          "@type": "PostalAddress",
+          "streetAddress": "Vila Food • Arena Jesus",
+          "addressLocality": "Itapecuru-Mirim",
+          "addressRegion": "MA",
+          "addressCountry": "BR"
+        },
+        "areaServed": { "@type": "City", "name": "Itapecuru-Mirim" },
+        "geo": { "@type": "GeoCoordinates", "latitude": -3.39034, "longitude": -44.3648791 },
+        "hasMap": "https://www.google.com/maps/place/Villa+Vick's/@-3.3902309,-44.3669793,776m/data=!3m1!1e3!4m17!1m10!3m9!1s0x7f4dff69a0b1293:0x1867c8def2675c81!2sVilla+Vick's!8m2!3d-3.39034!4d-44.3648791!10e5!14m1!1BCgIgAQ!16s%2Fg%2F11z7cyv75c!3m5!1s0x7f4dff69a0b1293:0x1867c8def2675c81!8m2!3d-3.39034!4d-44.3648791!16s%2Fg%2F11z7cyv75c?entry=ttu&g_ep=EgoyMDI2MDkyMi4wIKXMDSoASAFQAw%3D%3D",
+        "openingHoursSpecification": [
+          {
+            "@type": "OpeningHoursSpecification",
+            "dayOfWeek": ["Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+            "opens": "18:00",
+            "closes": "23:30"
+          }
+        ],
+        "hasMenu": [
+          { "@type": "Menu", "name": "Cardápio Burger", "url": "https://pedido.anota.ai/loja/vicksburger?f=msa" },
+          { "@type": "Menu", "name": "Cardápio Pizza", "url": "https://pedido.anota.ai/loja/vicks-pizza-1?f=msa" },
+          { "@type": "Menu", "name": "Cardápio Grill", "url": "https://pedido.anota.ai/loja/churrasquinho-hc-edu-garcia-1?f=msa" }
+        ],
+        "acceptsReservations": false,
+        "sameAs": ["https://www.instagram.com/villavicks"]
+      }
+    </script>
+  </head>
+  <body>
+    <div id="boot" aria-hidden="true">
+      <svg class="boot-l" viewBox="36 44 928 468" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <pattern id="boot-pl" patternUnits="userSpaceOnUse" x="0" y="36.5" width="2000" height="1126">
+            <image href="%BASE_URL%assets/branding/papel-embalagem.webp" width="1000" height="563" preserveAspectRatio="none" />
+            <image href="%BASE_URL%assets/branding/papel-embalagem.webp" width="1000" height="563" preserveAspectRatio="none" transform="translate(2000 0) scale(-1 1)" />
+            <image href="%BASE_URL%assets/branding/papel-embalagem.webp" width="1000" height="563" preserveAspectRatio="none" transform="translate(0 1126) scale(1 -1)" />
+            <image href="%BASE_URL%assets/branding/papel-embalagem.webp" width="1000" height="563" preserveAspectRatio="none" transform="translate(2000 1126) scale(-1 -1)" />
+          </pattern>
+        </defs>
+        <rect x="-4000" y="-4000" width="9000" height="8000" fill="#e8dcd0" />
+        <rect x="-4000" y="-4000" width="9000" height="8000" fill="url(#boot-pl)" />
+        <text x="500" y="150" text-anchor="middle" fill="#4a2c17" style="font: 700 34px 'Archivo Variable', Archivo, Arial, sans-serif; letter-spacing: 0.02em">Bateu a fome?</text>
+        <text x="500" y="404" text-anchor="middle" textLength="880" lengthAdjust="spacingAndGlyphs" fill="#d11b22" style="font-family: Anton, Impact, 'Arial Narrow Bold', sans-serif; font-size: 250px">VICK'S</text>
+        <text x="500" y="488" text-anchor="middle" fill="#4a2c17" style="font: 600 20px 'Archivo Variable', Archivo, Arial, sans-serif; letter-spacing: 0.04em">Role para abrir</text>
+      </svg>
+      <svg class="boot-p" viewBox="50 -640 900 1916" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <pattern id="boot-pp" patternUnits="userSpaceOnUse" x="-700" y="-357.5" width="4800" height="2702">
+            <image href="%BASE_URL%assets/branding/papel-embalagem.webp" width="2400" height="1351" preserveAspectRatio="none" />
+            <image href="%BASE_URL%assets/branding/papel-embalagem.webp" width="2400" height="1351" preserveAspectRatio="none" transform="translate(4800 0) scale(-1 1)" />
+            <image href="%BASE_URL%assets/branding/papel-embalagem.webp" width="2400" height="1351" preserveAspectRatio="none" transform="translate(0 2702) scale(1 -1)" />
+            <image href="%BASE_URL%assets/branding/papel-embalagem.webp" width="2400" height="1351" preserveAspectRatio="none" transform="translate(4800 2702) scale(-1 -1)" />
+          </pattern>
+        </defs>
+        <rect x="-4000" y="-4000" width="9000" height="8000" fill="#e8dcd0" />
+        <rect x="-4000" y="-4000" width="9000" height="8000" fill="url(#boot-pp)" />
+        <text x="500" y="120" text-anchor="middle" fill="#4a2c17" style="font: 700 54px 'Archivo Variable', Archivo, Arial, sans-serif; letter-spacing: 0.02em">Bateu a fome?</text>
+        <text x="500" y="404" text-anchor="middle" textLength="880" lengthAdjust="spacingAndGlyphs" fill="#d11b22" style="font-family: Anton, Impact, 'Arial Narrow Bold', sans-serif; font-size: 250px">VICK'S</text>
+        <text x="500" y="580" text-anchor="middle" fill="#4a2c17" style="font: 600 40px 'Archivo Variable', Archivo, Arial, sans-serif; letter-spacing: 0.04em">Role para abrir</text>
+      </svg>
+    </div>
+    <div id="root"></div>
+    <noscript>
+      <p style="padding:24px;color:#f5f5f5;font-family:sans-serif">
+        Villa Vick's — Burger, Pizza & Grill. Terça a Domingo, 18h às 23h30. Vila Food • Arena Jesus, Itapecuru-Mirim.
+        <a style="color:#f5b51b" href="https://www.instagram.com/villavicks">@villavicks</a>
+      </p>
+    </noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,30 @@
+// Sequência de quadros da montagem do burger para o celular (no lugar do vídeo).
+// Vídeo de 10 s a 24 fps → 1 a cada 3 quadros = 80 fotos (uma a cada 0,125 s), 640×576 em WebP.
+// Uso: node scripts/build-hero-frames.mjs
+import { execFileSync } from "node:child_process";
+import { mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import ffmpeg from "ffmpeg-static";
+import sharp from "sharp";
+
+const SRC = "public/assets/videos/burger-intro-mobile.mp4";
+const OUT = "public/assets/videos/frames";
+const STEP = 3;
+const tmp = join(tmpdir(), "vv-hero-frames");
+rmSync(tmp, { recursive: true, force: true });
+mkdirSync(tmp, { recursive: true });
+rmSync(OUT, { recursive: true, force: true });
+mkdirSync(OUT, { recursive: true });
+
+execFileSync(ffmpeg, ["-hide_banner", "-loglevel", "error", "-i", SRC, "-vf", `select=not(mod(n\\,${STEP}))`, "-vsync", "vfr", join(tmp, "f%03d.png")]);
+const files = readdirSync(tmp).filter((f) => f.endsWith(".png")).sort();
+let total = 0;
+for (const [i, f] of files.entries()) {
+  const out = join(OUT, `m-${String(i).padStart(2, "0")}.webp`);
+  await sharp(join(tmp, f)).resize(640, 576).webp({ quality: 60, effort: 6 }).toFile(out);
+  total += statSync(out).size;
+}
+writeFileSync(join(OUT, "info.json"), JSON.stringify({ count: files.length, fps: 24 / STEP, width: 640, height: 576 }));
+rmSync(tmp, { recursive: true, force: true });
+console.log(`${files.length} quadros, ${(total / 1024) | 0} KB em ${OUT}`);

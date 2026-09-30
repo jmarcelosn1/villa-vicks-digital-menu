@@ -1,0 +1,327 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+/* Fontes: só woff2 do subconjunto latino (cobre o português) — o build embute no HTML */
+@font-face {
+  font-family: "Anton";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../node_modules/@fontsource/anton/files/anton-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Alfa Slab One";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../node_modules/@fontsource/alfa-slab-one/files/alfa-slab-one-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Archivo Variable";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("../node_modules/@fontsource-variable/archivo/files/archivo-latin-wght-normal.woff2") format("woff2-variations");
+}
+
+/* ------------------------------------------------------------------
+   Villa Vick's — tokens
+   Cores extraídas do logo e das artes: vermelho #E52023, dourado #BE9950,
+   amarelo das artes de pizza #F5B51B, preto profundo.
+------------------------------------------------------------------- */
+@theme {
+  --color-ink: #050505;
+  --color-coal: #0a0a0a;
+  --color-char: #121212;
+  --color-ash: #1c1c1c;
+  --color-bone: #f5f5f5;
+  --color-kraft: #c9a27a;
+  --color-smoke: #a8a8a8;
+  --color-vred: #e52023;
+  --color-vred-deep: #b8121a;
+  /* vermelho para texto pequeno sobre preto (contraste ≥ 4.5:1) */
+  --color-vred-text: #ff4a4d;
+  --color-gold: #c9a45c;
+  --color-mustard: #f5b51b;
+  --color-ember: #ff6a1a;
+  --color-amber: #f59e0b;
+  --color-burnt: #6e1a0c;
+
+  --font-display: "Anton", "Impact", "Haettenschweiler", "Arial Narrow Bold", sans-serif;
+  /* slab da arte de delivery do cliente */
+  --font-slab: "Alfa Slab One", "Rockwell Extra Bold", Rockwell, Georgia, serif;
+  --font-sans: "Archivo Variable", "Archivo", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* shadcn/ui — variáveis mapeadas para a identidade (tema escuro fixo) */
+:root {
+  --radius: 0.25rem;
+  --background: #050505;
+  --foreground: #f5f5f5;
+  --card: #0a0a0a;
+  --card-foreground: #f5f5f5;
+  --popover: #0a0a0a;
+  --popover-foreground: #f5f5f5;
+  --primary: #e52023;
+  --primary-foreground: #ffffff;
+  --secondary: #1c1c1c;
+  --secondary-foreground: #f5f5f5;
+  --muted: #121212;
+  --muted-foreground: #a8a8a8;
+  --accent: #1c1c1c;
+  --accent-foreground: #f5f5f5;
+  --destructive: #e52023;
+  --border: rgb(255 255 255 / 0.12);
+  --input: rgb(255 255 255 / 0.16);
+  --ring: #f5b51b;
+
+  --hdr: 64px;
+  color-scheme: dark;
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --hdr: 76px;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    background: var(--color-ink);
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    scroll-padding-top: var(--hdr);
+  }
+
+  /* sem scroll-behavior: smooth global: em navegadores embutidos ele cortava o embalo do dedo.
+     Os links internos já rolam suave por código (lib/scroll-to). */
+
+  body {
+    /* sem background: a camada fixa de "clima" (z-index negativo) fica visível atrás do conteúdo */
+    @apply text-bone font-sans antialiased;
+    overflow-x: clip;
+    min-height: 100vh;
+    min-height: calc(var(--vh, 1dvh) * 100);
+    -webkit-tap-highlight-color: transparent;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* overflow-x: clip sem suporte (Safari < 16) */
+  @supports not (overflow: clip) {
+    body {
+      overflow-x: hidden;
+    }
+  }
+
+  img,
+  video {
+    max-width: 100%;
+  }
+
+  a,
+  button,
+  [role="button"] {
+    touch-action: manipulation;
+  }
+
+  @media (max-width: 639px) {
+    html {
+      scroll-padding-bottom: 5.5rem;
+    }
+  }
+
+  ::selection {
+    background: var(--color-vred);
+    color: #fff;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-mustard);
+    outline-offset: 3px;
+  }
+}
+
+@layer components {
+  /* Títulos display — condensados, impacto de pôster */
+  .display {
+    font-family: var(--font-display);
+    font-weight: 400;
+    /* 0.98: acentos em maiúsculas (TÁ, Ç, Ê) não encostam na linha de cima */
+    line-height: 1.08;
+    letter-spacing: 0.005em;
+    text-transform: uppercase;
+    text-wrap: balance;
+  }
+
+  /* Rótulo curto em caixa normal (sem caixa alta espaçada) */
+  .label {
+    @apply font-sans text-[0.85rem] font-semibold tracking-[0.01em] text-gold;
+  }
+
+  /* ------------------------ BOTÕES ------------------------
+     Botões de balcão: sólidos, texto em peso 800 e uma borda inferior firme — o mesmo selo
+     do "PEÇA JÁ!" da arte de delivery. Sobem um pouco no hover e afundam ao pressionar.
+     --edge é a cor da borda inferior de cada variante. */
+  .btn {
+    --edge: rgb(0 0 0 / 0.4);
+    @apply relative inline-flex min-h-[3.25rem] items-center justify-center gap-2.5 rounded-full px-7 font-sans text-[1rem] leading-none font-extrabold tracking-[0.005em] whitespace-nowrap select-none;
+    box-shadow: 0 4px 0 var(--edge);
+    transition:
+      transform 180ms var(--ease-out-expo),
+      box-shadow 180ms var(--ease-out-expo),
+      background-color 200ms ease,
+      color 200ms ease;
+  }
+  @media (hover: hover) {
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 0 var(--edge);
+    }
+  }
+  .btn:active {
+    transform: translateY(3px);
+    box-shadow: 0 1px 0 var(--edge);
+    transition-duration: 60ms;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .btn,
+    .btn:hover,
+    .btn:active {
+      transform: none;
+    }
+  }
+  .btn-sm {
+    @apply min-h-11 gap-2 px-5 text-[0.92rem];
+    box-shadow: 0 3px 0 var(--edge);
+  }
+  .btn-primary {
+    --edge: #7d0a0f;
+    @apply bg-vred text-white hover:bg-[#f22a2d];
+  }
+  /* creme do papel de embalagem da abertura */
+  .btn-paper {
+    --edge: #a38c73;
+    @apply bg-[#f1e6d8] text-ink hover:bg-[#fbf3e8];
+  }
+  .btn-dark {
+    --edge: rgb(0 0 0 / 0.55);
+    @apply bg-[#0b0b0b] text-white hover:bg-black;
+  }
+
+  /* Moldura de foto */
+  .photo {
+    display: block;
+    position: relative;
+    overflow: hidden;
+    background: var(--color-char);
+    border-radius: 1.25rem;
+    isolation: isolate;
+  }
+  .photo > picture,
+  .photo > img,
+  .photo > picture > img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  /* Palco do cardápio: quadrado que cabe na tela junto com as abas e a faixa de pratos.
+     --reserve = altura do que precisa caber junto com a foto (abaixo do header). */
+  .menu-stage {
+    /* celular: abas, faixa de pratos e a barra fixa de pedido */
+    --reserve: 28rem;
+    width: min(100%, 34rem, max(15rem, calc(100vh - var(--hdr) - var(--reserve))));
+    width: min(100%, 34rem, max(15rem, calc(calc(var(--svh, 1svh) * 100) - var(--hdr) - var(--reserve))));
+  }
+  @media (min-width: 640px) {
+    .menu-stage {
+      --reserve: 23.5rem;
+    }
+  }
+  @media (min-width: 1024px) {
+    .menu-stage {
+      --reserve: 2.5rem;
+    }
+  }
+
+  /* Faixa de pratos: esmaece a borda do lado em que ainda há pratos escondidos */
+  .dish-strip {
+    --fade-l: 2.25rem;
+    --fade-r: 2.25rem;
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent 100%);
+    mask-image: linear-gradient(to right, transparent 0, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent 100%);
+  }
+  .dish-strip[data-at-start="true"] {
+    --fade-l: 0px;
+  }
+  .dish-strip[data-at-end="true"] {
+    --fade-r: 0px;
+  }
+  .dish-strip[data-dragging="true"] {
+    scroll-snap-type: none;
+    user-select: none;
+  }
+
+  /* ------------------------ HERO ------------------------ */
+  /* Trilha: 2 telas de altura = 1 tela de rolagem (papel rasgando + marca entrando), sem trecho morto */
+  .hero-track {
+    height: 200vh;
+    height: calc(var(--vh, 1svh) * 200);
+  }
+  .hero-stage {
+    height: 100vh;
+    height: calc(var(--vh, 1dvh) * 100);
+    /* sem fundo próprio: a cor vem da camada de "clima" (#mood-layer), a mesma das outras seções —
+       assim a intro escurece junto para a cor do cardápio, sem linha de emenda */
+  }
+}
+
+/* Pino do mapa: um pulso discreto marca o ponto */
+.map-pulse {
+  transform: translate(-50%, -50%); /* centro do pulso = ponta do pino (sem animação também) */
+}
+@keyframes map-pulse {
+  0% {
+    transform: translate(-50%, -50%) scale(0.35);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.4);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .map-pulse {
+    animation: map-pulse 2.2s ease-out infinite;
+  }
+}

@@ -1,0 +1,15 @@
+node_modules
+dist
+.cache
+*.log
+qa-output
+.env
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+!.env.example
+
+# cópia usada para publicar no Cloudflare Pages
+.pages-out
