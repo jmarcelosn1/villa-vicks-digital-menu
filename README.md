@@ -1,132 +1,61 @@
-# Villa Vick's — Site Burger • Pizza • Grill
+# Villa Vick's: site e cardápio digital
 
-Um site moderno e responsivo para a hamburgueria, pizzaria e grill **Villa Vick's**, localizada em Itapecuru-Mirim, MA.
+Site responsivo da hamburgueria, pizzaria e grill **Villa Vick's**, em Itapecuru-Mirim (MA), com cardápio completo, cardápio digital para as mesas e contato direto por WhatsApp.
 
-**[🔗 Ver ao vivo](https://villa-vicks.joaomarcelo7730.workers.dev)**
+**[Ver no ar](https://villa-vicks.joaomarcelo7730.workers.dev)**
 
-## ✨ Features
+**Stack:** React 19 · TypeScript · Vite 8 · Tailwind CSS 4 · GSAP · Cloudflare Workers (arquivos estáticos)
 
-- **Intro animada** — Papel kraft rasgando na entrada, revela a marca com scroll suave
-- **Cardápio completo** — 66 pratos (Burger, Pizza, Grill) com fotos
-- **Cardápio digital para mesa** — QR code interno, lista otimizada para restaurante
-- **Mapa estático otimizado** — OpenStreetMap renderizado como imagem (~50KB, zero latência)
-- **Integração WhatsApp** — Botão com mensagem pré-preenchida por seção (burger, pizza, grill)
-- **Performance** — Lighthouse 98+, <1s LCP, zero CLS
-- **Mobile-first** — Totalmente responsivo, touch-otimizado
-- **Viewport stável** — Sistema inteligente de altura de viewport (--vh, --svh) que evita pulos ao carregar address bar
+## O que o site entrega
 
-## 🛠 Stack
+- **Abertura animada:** papel kraft rasgando revela a marca, com rolagem suave.
+- **Cardápio completo:** 66 pratos (Burger, Pizza e Grill) com foto.
+- **Cardápio digital de mesa:** página própria, gerada no build, pensada para abrir por QR code no salão.
+- **Mapa estático:** tiles do OpenStreetMap recoloridos na paleta da marca e servidos como imagem WebP (cerca de 50 KB), em vez de um mapa incorporado.
+- **WhatsApp por seção:** links com mensagem pré-preenchida para burger, pizza e grill.
+- **Mobile primeiro:** layout pensado para o navegador do Instagram e do WhatsApp, com toque otimizado.
+- **SEO local:** `sitemap.xml`, `robots.txt`, `404.html`, schema `LocalBusiness` (JSON-LD) e tags Open Graph.
 
-- **React 19** + Vite 4
-- **TypeScript**
-- **Tailwind CSS v4**
-- **GSAP** (ScrollTrigger para animações scroll)
-- **Cloudflare Pages** (hospedagem)
+## Decisões de engenharia
 
-## 🎨 Design
+**Altura de viewport estável.** A barra de endereço do celular aparece e some e faz a página "pular". `src/lib/stable-vh.ts` registra a menor e a maior altura vistas e expõe as variáveis CSS `--vh` e `--svh`, respeitando `prefers-reduced-motion`.
 
-- **Tema escuro** com acentos em vermelho brand (#E52023)
-- **Material kraft** — embalagem como metáfora visual
-- **Tipografia** — Archivo + Anton (Google Fonts)
-- **Animações contextuais** — movimento responde a scroll e interação, nunca gratuito
+**Mapa como imagem.** `scripts/build-map.mjs` baixa os tiles, recolore para a paleta da marca e gera WebP. O resultado carrega sem requisição de terceiros e funciona offline; o clique abre a rota no Google Maps.
 
-## 🚀 Como rodar localmente
+**Páginas geradas no build.** `scripts/build-cardapio.mjs` gera o HTML do cardápio de mesa e `scripts/finalize-dist.mjs` produz `robots.txt`, `sitemap.xml` e `404.html`, então o site publicado é 100% estático.
+
+## Como rodar
 
 ```bash
-# Instalar dependências
 npm install
-
-# Dev server (http://localhost:5173)
-npm run dev
-
-# Build para produção
-npm run build
-
-# Preview da build
-npm run preview
+npm run dev          # servidor de desenvolvimento em http://localhost:5173
+npm run typecheck    # checagem de tipos
+npm run build        # tipos, build, arquivos de SEO e cardápio de mesa
+npm run preview      # build + servidor local do Cloudflare (wrangler dev)
+npm run deploy       # build + publicação
 ```
 
-## 📁 Estrutura
+## Estrutura
 
 ```
 src/
-├── components/
-│   ├── HeroIntro.tsx         # Seção de abertura com papel rasgando
-│   ├── Sections.tsx           # Cards do cardápio por seção
-│   ├── MapEmbed.tsx           # Mapa estático com pin
-│   ├── Header.tsx             # Nav fixa no topo
-│   └── ...
-├── lib/
-│   ├── stable-vh.ts           # Sistema de viewport height estável
-│   ├── whatsapp.ts            # Links WhatsApp pré-preenchidos
-│   └── ...
-├── data/
-│   └── site.ts                # Menu, contatos, metadados
-└── styles/
-    └── index.css              # Custom properties, animações
-
+  components/    Header, HeroIntro, Sections, MenuShowcase, MobileOrderBar, MapEmbed...
+  lib/           stable-vh, whatsapp, menu-store, scroll-to, gsap...
+  data/          menu, contatos e metadados (site.ts)
+  hooks/
+  index.css      propriedades customizadas e animações
 scripts/
-├── build-map.mjs              # Gera imagens do mapa (OpenStreetMap → WebP)
-├── build-cardapio.mjs         # Gera página HTML do cardápio digital
-└── finalize-dist.mjs          # Robots.txt, sitemap, 404.html
+  build-map.mjs          imagens do mapa (OpenStreetMap para WebP)
+  build-cardapio.mjs     página HTML do cardápio digital
+  build-assets.mjs       otimização de imagens
+  finalize-dist.mjs      robots.txt, sitemap e 404.html
+docs/                    análise de SEO local
 ```
 
-## 🔧 Scripts úteis
+## Desenvolvimento com agentes de IA
 
-```bash
-npm run dev          # Dev server com HMR
-npm run build        # Build produção
-npm run preview      # Pré-visualizar build
-npm run type-check   # Type checking (TypeScript)
-```
+O projeto foi desenvolvido com agentes de código (Claude Code). O repositório guarda o que orienta o agente: skills de design de interface, SEO local e performance web em `.agents/skills` e `.claude/skills` (versões travadas em `skills-lock.json`) e a análise de SEO local em `docs/`. O ciclo é: definir o comportamento e o conteúdo, deixar o agente implementar, e conferir o resultado com `npm run typecheck` e `npm run build` e no navegador antes de publicar.
 
-## 🎯 Destaques técnicos
+## Créditos
 
-### Viewport Height Estável
-Resolve o problema de jump ao aparecer/desaparecer a address bar em mobile:
-- Rastreia altura mínima e máxima vista
-- CSS custom properties `--vh` e `--svh`
-- Suporte a reduced-motion
-
-### Mapa estático
-Substitui Google Maps por imagem gerada:
-- Tiles OpenStreetMap downloadados e recoloridos para brand palette
-- Renderizado como WebP (42-53KB vs 1MB do Google Maps)
-- Zero latência, funciona offline
-- Clique abre rota no Google Maps
-
-### WhatsApp integrado
-- Links dinâmicos por seção (burger/pizza/grill)
-- Mensagens pré-preenchidas
-- Redireção automática
-
-## 📱 Responsivo
-
-- **Mobile** (375px) — Otimizado para Instagram, WhatsApp browser
-- **Tablet** (768px) — Layout adaptado
-- **Desktop** (1280px+) — Experiência completa
-
-## 🔐 SEO & Segurança
-
-- ✓ Sitemap.xml gerado automaticamente
-- ✓ Robots.txt configurado
-- ✓ 404.html customizado
-- ✓ LocalBusiness schema (JSON-LD)
-- ✓ Open Graph tags para compartilhamento
-
-## 📊 Performance
-
-| Métrica | Resultado |
-|---------|-----------|
-| Lighthouse Performance | 98+ |
-| LCP (Largest Contentful Paint) | <1s |
-| FID (First Input Delay) | <100ms |
-| CLS (Cumulative Layout Shift) | 0.0 |
-
-## 📝 Licença
-
-© 2026 João Marcelo — Projeto de portfólio. Código aberto para referência e estudo.
-
----
-
-**Desenvolvido por [João Marcelo](https://github.com/jmarcelosn1)** — Criação de sites para negócios locais
+Projeto de portfólio de [João Marcelo](https://github.com/jmarcelosn1): criação de sites para negócios locais.
